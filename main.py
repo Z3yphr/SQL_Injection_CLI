@@ -222,9 +222,14 @@ def crawl_and_test(start_url, max_pages=10, crack_lists=False, fresh_crack=False
     queue = deque([start_url])
     pages_tested = 0
     crawl_results = []
+    def normalize_url(url):
+        # Remove trailing slash and default port
+        parsed = urlparse(url)
+        netloc = parsed.netloc.split(':')[0]
+        return parsed._replace(netloc=netloc, path=parsed.path.rstrip('/')).geturl()
     while queue and pages_tested < max_pages:
         url = queue.popleft()
-        url_norm = url.rstrip('/')
+        url_norm = normalize_url(url)
         if url_norm in visited:
             continue
         visited.add(url_norm)
@@ -239,8 +244,8 @@ def crawl_and_test(start_url, max_pages=10, crack_lists=False, fresh_crack=False
             # Find and enqueue internal links
             for link in soup.find_all('a', href=True):
                 link_url = urljoin(url, link['href'])
-                link_url_norm = link_url.rstrip('/')
-                if urlparse(link_url).netloc == urlparse(start_url).netloc and link_url_norm not in visited:
+                link_url_norm = normalize_url(link_url)
+                if urlparse(link_url).netloc == urlparse(start_url).netloc and link_url_norm not in visited and link_url_norm not in queue:
                     queue.append(link_url)
         except Exception as e:
             print(f"[!] Error crawling {url}: {e}")

@@ -3,6 +3,14 @@ import sqlite3
 
 app = Flask(__name__)
 
+home_page = '''
+<!doctype html>
+<title>Welcome</title>
+<h2>Welcome to the Dummy Site</h2>
+<p>This is a deliberately vulnerable site for SQL injection testing.</p>
+<p><a href="/login">Go to Login Page</a></p>
+'''
+
 login_form = '''
 <!doctype html>
 <title>Login</title>
@@ -16,11 +24,15 @@ login_form = '''
 '''
 
 @app.route('/', methods=['GET'])
-def index():
+def home():
+    return render_template_string(home_page)
+
+@app.route('/login', methods=['GET'])
+def login_get():
     return render_template_string(login_form, message="")
 
-@app.route('/', methods=['POST'])
-def login():
+@app.route('/login', methods=['POST'])
+def login_post():
     username = request.form['username']
     password = request.form['password']
     # VULNERABLE SQL QUERY (do not use in production!)

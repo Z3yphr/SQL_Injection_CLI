@@ -13,6 +13,10 @@ This project is a Python-based command-line tool designed to test web applicatio
 
 ## Usage
 
+- `--auto` tests forms only on the page specified by `--url` (no crawling).
+- `--crawl` starts at the specified URL and follows internal links, testing forms on every discovered page.
+- Use both `--auto` and `--crawl` together to test the initial page and crawl the rest of the site.
+
 ### Launch the Test Dummy Site
 
 1. Ensure you have Python 3.8+ and Flask installed:
@@ -28,20 +32,22 @@ This project is a Python-based command-line tool designed to test web applicatio
    ```
 
    The site will be available at http://127.0.0.1:5000/
+   - The home page is at `/`.
+   - The login form is at `/login`.
 
 ### Basic SQLi Test (manual parameters)
 
 ```powershell
-python main.py --url "http://127.0.0.1:5000/" --params "username=admin&password=admin"
+python main.py --url "http://127.0.0.1:5000/login" --params "username=admin&password=admin"
 ```
 
-### Automatic Form Discovery (main page only, blind SQLi by default)
+### Automatic Form Discovery (main login page only, no crawling)
 
 ```powershell
-python main.py --url "http://127.0.0.1:5000/" --auto
+python main.py --url "http://127.0.0.1:5000/login" --auto
 ```
 
-### Crawl and Test All Pages (blind SQLi by default)
+### Crawl and Test All Pages (finds and tests all forms on all internal pages)
 
 ```powershell
 python main.py --url "http://127.0.0.1:5000/" --crawl
@@ -56,7 +62,7 @@ python main.py --url "http://127.0.0.1:5000/" --auto --crawl
 ### Brute-force Credentials with User/Password Lists
 
 ```powershell
-python main.py --url "http://127.0.0.1:5000/" --auto --crack_lists --userlist users.txt --passlist passwords.txt
+python main.py --url "http://127.0.0.1:5000/login" --auto --crack_lists --userlist users.txt --passlist passwords.txt
 ```
 
 - `users.txt` and `passwords.txt` should contain one entry per line.
@@ -65,7 +71,13 @@ python main.py --url "http://127.0.0.1:5000/" --auto --crack_lists --userlist us
 ### Blind SQLi Extraction (no prior knowledge, enumerate all users)
 
 ```powershell
-python main.py --url "http://127.0.0.1:5000/" --auto --fresh_crack
+python main.py --url "http://127.0.0.1:5000/login" --auto --fresh_crack
+```
+
+Or, to crawl and extract from all forms on all pages:
+
+```powershell
+python main.py --url "http://127.0.0.1:5000/" --crawl --fresh_crack
 ```
 
 ### All Options
@@ -100,7 +112,7 @@ The included `vuln_app.py` is an intentionally vulnerable Flask web application 
 
 ### What is Vulnerable?
 
-- The login form at `/` is vulnerable to SQL injection in both the `username` and `password` fields.
+- The login form at `/login` is vulnerable to SQL injection in both the `username` and `password` fields.
 - The backend uses a raw SQL query with unsanitized user input:
 
   ```python
