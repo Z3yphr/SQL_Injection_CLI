@@ -97,6 +97,40 @@ Validated credentials:
 ============================
 ```
 
+## Secure Demo Site
+
+A secure version of the dummy site is provided in `secure_app.py`. This site uses parameterized SQL queries and proper output escaping to demonstrate how to mitigate SQL injection and XSS vulnerabilities.
+
+- Start the secure site:
+  ```powershell
+  python secure_app.py
+  ```
+  The site will be available at http://127.0.0.1:5000/
+
+- The code structure and user experience are identical to the vulnerable version, but all major vulnerabilities are mitigated.
+
+## CLI Output Details
+
+- **[!] Potential SQL Injection (SQL error):** Strong indicator of SQL injection (SQL error message detected).
+- **[i] Response changed for payload, but this does NOT confirm SQL injection:** The page output changed when a payload was injected, but this is not a confirmed vulnerability. This may be normal behavior for some forms.
+- **[!] Potential XSS (payload reflected):** The payload was reflected in the response and may be exploitable as XSS.
+- **[POC]**: Proof-of-concept URL or curl command for XSS payloads that are reflected.
+
+## Vulnerabilities Demonstrated
+
+### Vulnerable Site (`vuln_app.py`)
+- **SQL Injection:**
+  - Login form uses string formatting in SQL queries (vulnerable).
+  - Profile lookup may reflect input unsafely.
+- **XSS:**
+  - Profile page reflects user input with `|safe` (vulnerable to reflected XSS).
+
+### Secure Site (`secure_app.py`)
+- **SQL Injection Mitigation:**
+  - All queries use parameterized statements (`?` placeholders).
+- **XSS Mitigation:**
+  - No use of `|safe` in templates; Flask auto-escapes output.
+
 ## Requirements
 
 - Python 3.8+

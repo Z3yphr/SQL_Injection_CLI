@@ -323,35 +323,40 @@ def main():
         return
     # Output summary
     print("\n========== SUMMARY ==========")
+    print("Note: '[i] Response changed for payload, but this does NOT confirm SQL injection' means the page output changed, but this is not a confirmed vulnerability. Only '[!] Potential SQL Injection (SQL error)' or authentication bypasses are strong indicators of SQLi.\n")
     if 'pages' in results:
         for page in results['pages']:
             print(f"\n[Page: {page['url']}]")
-            print("Possible SQLi payloads:")
+            print("SQL Injection findings:")
             if page.get('sqli'):
                 for vuln in page.get('sqli', []):
-                    print(f"  - {vuln}")
+                    if '(SQL error detected)' in vuln:
+                        print(f"  [!] Potential SQL Injection (SQL error): {vuln}")
+                    elif '(response changed)' in vuln:
+                        print(f"  [i] Response changed for payload, but this does NOT confirm SQL injection: {vuln}")
+                    else:
+                        print(f"  [!] Potential SQL Injection: {vuln}")
             else:
                 print("  None found")
-            print("Possible XSS payloads:")
+            print("XSS findings:")
             if page.get('xss'):
                 for xss in page.get('xss', []):
-                    print(f"  - {xss}")
+                    if '(reflected)' in xss:
+                        print(f"  [!] Potential XSS (payload reflected): {xss}")
+                    else:
+                        print(f"  [!] Potential XSS: {xss}")
                 # Output PoC for each XSS
                 for xss in page.get('xss', []):
-                    # Try to extract param and payload
                     if ' with payload: ' in xss:
                         param, rest = xss.split(' with payload: ', 1)
                         payload = rest.split(' (')[0]
-                        # Determine method (GET/POST)
                         method = 'GET'
                         if '[POST]' in page['url']:
                             method = 'POST'
                         if method == 'GET' or page['url'].endswith('/profile'):
-                            # PoC URL for GET
                             poc_url = f"{page['url']}?{param}={requests.utils.quote(payload)}"
                             print(f"    [POC] {poc_url}")
                         else:
-                            # PoC curl for POST
                             print(f"    [POC] curl -X POST '{page['url']}' -d '{param}={payload}'")
             else:
                 print("  None found")
@@ -363,16 +368,24 @@ def main():
             print(f"\n[Crawled Page: {crawl_page['url']}]")
             for page in crawl_page.get('pages', []):
                 print(f"  [Form: {page['url']}]")
-                print("  Possible SQLi payloads:")
+                print("  SQL Injection findings:")
                 if page.get('sqli'):
                     for vuln in page.get('sqli', []):
-                        print(f"    - {vuln}")
+                        if '(SQL error detected)' in vuln:
+                            print(f"    [!] Potential SQL Injection (SQL error): {vuln}")
+                        elif '(response changed)' in vuln:
+                            print(f"    [i] Response changed for payload, but this does NOT confirm SQL injection: {vuln}")
+                        else:
+                            print(f"    [!] Potential SQL Injection: {vuln}")
                 else:
                     print("    None found")
-                print("  Possible XSS payloads:")
+                print("  XSS findings:")
                 if page.get('xss'):
                     for xss in page.get('xss', []):
-                        print(f"    - {xss}")
+                        if '(reflected)' in xss:
+                            print(f"    [!] Potential XSS (payload reflected): {xss}")
+                        else:
+                            print(f"    [!] Potential XSS: {xss}")
                 else:
                     print("    None found")
                 print("  Validated credentials:")
