@@ -16,7 +16,7 @@ SQLI_PAYLOADS = [
     '"--',
 ]
 
-def test_sqli(url, params):
+def test_sqli(url, params, method="GET"):
     print("\n[+] Starting SQL Injection tests...")
     vulnerable = False
     for payload in SQLI_PAYLOADS:
@@ -26,7 +26,10 @@ def test_sqli(url, params):
                 k, v = pair.split('=', 1)
                 test_params[k] = v + payload
         try:
-            resp = requests.get(url, params=test_params, timeout=5)
+            if method.upper() == "POST":
+                resp = requests.post(url, data=test_params, timeout=5)
+            else:
+                resp = requests.get(url, params=test_params, timeout=5)
             if is_sqli_response(resp.text):
                 print(f"[!] Possible SQLi vulnerability with payload: {payload}")
                 vulnerable = True
@@ -55,10 +58,11 @@ def main():
     )
     parser.add_argument('--url', type=str, help='Target URL to test', required=True)
     parser.add_argument('--params', type=str, help='Parameters to test (e.g., "id=1")', required=True)
+    parser.add_argument('--method', type=str, choices=['GET', 'POST'], default='GET', help='HTTP method to use (GET or POST)')
     args = parser.parse_args()
 
-    print(f"Testing {args.url} with params: {args.params}")
-    test_sqli(args.url, args.params)
+    print(f"Testing {args.url} with params: {args.params} using {args.method} method")
+    test_sqli(args.url, args.params, args.method)
     # TODO: Report findings and suggest remediation
 
 if __name__ == "__main__":
