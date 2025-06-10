@@ -93,3 +93,30 @@ Validated credentials:
   ```powershell
   pip install -r requirements.txt
   ```
+
+## Vulnerable Dummy Site Details
+
+The included `vuln_app.py` is an intentionally vulnerable Flask web application for safe SQL injection testing. **Do not deploy in production!**
+
+### What is Vulnerable?
+
+- The login form at `/` is vulnerable to SQL injection in both the `username` and `password` fields.
+- The backend uses a raw SQL query with unsanitized user input:
+
+  ```python
+  query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+  ```
+
+- No input validation or parameterization is performed.
+- The login form always returns a message on the same page, indicating success or failure.
+- The user database is reset on every login attempt, so destructive SQLi payloads do not persist.
+
+### How the CLI Tool Tests the Dummy Site
+
+- **Basic SQLi:** The tool injects common payloads into each form field and looks for changes in the response or error messages.
+- **Authentication Bypass:** If a payload causes the login to succeed ("Login successful!"), the tool reports an authentication bypass.
+- **Brute-force:** The tool can try username/password combinations from external lists, reporting any valid credentials found.
+- **Blind SQLi Extraction:** The tool uses boolean-based blind SQLi to extract usernames and passwords character by character, by observing when the response indicates a successful login.
+- **Crawling:** The tool can discover and test all forms on all internal pages of the dummy site.
+
+**Note:** The dummy site is designed to be stable for repeated testing, and the CLI tool is tailored to detect and exploit its specific vulnerabilities for educational and demonstration purposes.
