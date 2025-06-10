@@ -1,5 +1,6 @@
 from flask import Flask, request, render_template_string
 import sqlite3
+import os
 
 app = Flask(__name__)
 
@@ -51,6 +52,21 @@ links_page = '''
 </ul>
 '''
 
+# Ensure users.db exists and has the required users
+def initialize_db():
+    if not os.path.exists('users.db'):
+        conn = sqlite3.connect('users.db')
+        c = conn.cursor()
+        c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, password TEXT)')
+        c.execute('INSERT OR IGNORE INTO users (id, username, password) VALUES (1, "admin", "admin123")')
+        c.execute('INSERT OR IGNORE INTO users (id, username, password) VALUES (2, "user", "userpass")')
+        c.execute('INSERT OR IGNORE INTO users (id, username, password) VALUES (3, "guest", "guest123")')
+        c.execute('INSERT OR IGNORE INTO users (id, username, password) VALUES (4, "root", "toor")')
+        conn.commit()
+        conn.close()
+
+initialize_db()
+
 @app.route('/', methods=['GET'])
 def home():
     return render_template_string(home_page)
@@ -67,12 +83,6 @@ def login_post():
     query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
     conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    # Re-create the users table and insert multiple users for each request
-    c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT, password TEXT)')
-    c.execute('INSERT OR IGNORE INTO users (id, username, password) VALUES (1, "admin", "admin123")')
-    c.execute('INSERT OR IGNORE INTO users (id, username, password) VALUES (2, "user", "userpass")')
-    c.execute('INSERT OR IGNORE INTO users (id, username, password) VALUES (3, "guest", "guest123")')
-    c.execute('INSERT OR IGNORE INTO users (id, username, password) VALUES (4, "root", "toor")')
     try:
         c.execute(query)
         user = c.fetchone()

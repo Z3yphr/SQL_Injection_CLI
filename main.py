@@ -336,6 +336,23 @@ def main():
             if page.get('xss'):
                 for xss in page.get('xss', []):
                     print(f"  - {xss}")
+                # Output PoC for each XSS
+                for xss in page.get('xss', []):
+                    # Try to extract param and payload
+                    if ' with payload: ' in xss:
+                        param, rest = xss.split(' with payload: ', 1)
+                        payload = rest.split(' (')[0]
+                        # Determine method (GET/POST)
+                        method = 'GET'
+                        if '[POST]' in page['url']:
+                            method = 'POST'
+                        if method == 'GET' or page['url'].endswith('/profile'):
+                            # PoC URL for GET
+                            poc_url = f"{page['url']}?{param}={requests.utils.quote(payload)}"
+                            print(f"    [POC] {poc_url}")
+                        else:
+                            # PoC curl for POST
+                            print(f"    [POC] curl -X POST '{page['url']}' -d '{param}={payload}'")
             else:
                 print("  None found")
             print("Validated credentials:")
