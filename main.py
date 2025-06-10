@@ -327,11 +327,17 @@ def main():
         for page in results['pages']:
             print(f"\n[Page: {page['url']}]")
             print("Possible SQLi payloads:")
-            for vuln in page.get('sqli', []):
-                print(f"  - {vuln}")
+            if page.get('sqli'):
+                for vuln in page.get('sqli', []):
+                    print(f"  - {vuln}")
+            else:
+                print("  None found")
             print("Possible XSS payloads:")
-            for xss in page.get('xss', []):
-                print(f"  - {xss}")
+            if page.get('xss'):
+                for xss in page.get('xss', []):
+                    print(f"  - {xss}")
+            else:
+                print("  None found")
             print("Validated credentials:")
             for cred in page.get('creds', []):
                 print(f"  - {cred}")
@@ -341,11 +347,17 @@ def main():
             for page in crawl_page.get('pages', []):
                 print(f"  [Form: {page['url']}]")
                 print("  Possible SQLi payloads:")
-                for vuln in page.get('sqli', []):
-                    print(f"    - {vuln}")
+                if page.get('sqli'):
+                    for vuln in page.get('sqli', []):
+                        print(f"    - {vuln}")
+                else:
+                    print("    None found")
                 print("  Possible XSS payloads:")
-                for xss in page.get('xss', []):
-                    print(f"    - {xss}")
+                if page.get('xss'):
+                    for xss in page.get('xss', []):
+                        print(f"    - {xss}")
+                else:
+                    print("    None found")
                 print("  Validated credentials:")
                 for cred in page.get('creds', []):
                     print(f"    - {cred}")
