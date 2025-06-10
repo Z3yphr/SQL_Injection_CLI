@@ -122,13 +122,15 @@ The included `vuln_app.py` is an intentionally vulnerable Flask web application 
 - No input validation or parameterization is performed.
 - The login form always returns a message on the same page, indicating success or failure.
 - The user database is reset on every login attempt, so destructive SQLi payloads do not persist.
+- The `/profile` page is vulnerable to reflected XSS in the `username` parameter (input is echoed unsanitized).
 
 ### How the CLI Tool Tests the Dummy Site
 
 - **Basic SQLi:** The tool injects common payloads into each form field and looks for changes in the response or error messages.
+- **XSS:** The tool injects common XSS payloads into each form field and checks if the payload is reflected in the response (reflected XSS detection).
 - **Authentication Bypass:** If a payload causes the login to succeed ("Login successful!"), the tool reports an authentication bypass.
 - **Brute-force:** The tool can try username/password combinations from external lists, reporting any valid credentials found.
 - **Blind SQLi Extraction:** The tool uses boolean-based blind SQLi to extract usernames and passwords character by character, by observing when the response indicates a successful login.
-- **Crawling:** The tool can discover and test all forms on all internal pages of the dummy site.
+- **Crawling:** The tool can discover and test all forms on all internal pages of the dummy site, including pages with many links.
 
 **Note:** The dummy site is designed to be stable for repeated testing, and the CLI tool is tailored to detect and exploit its specific vulnerabilities for educational and demonstration purposes.

