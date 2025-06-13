@@ -13,6 +13,7 @@ This project is a Python-based command-line tool designed to test web applicatio
 
 ## Usage
 
+- `No Arguments` will display my dev name, the date, and all the possible input details you need. 
 - `--auto` tests forms only on the page specified by `--url` (no crawling).
 - `--crawl` starts at the specified URL and follows internal links, testing forms on every discovered page.
 - Use both `--auto` and `--crawl` together to test the initial page and crawl the rest of the site.
