@@ -5,6 +5,30 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from collections import deque
 import os
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
+from rich.theme import Theme
+import datetime
+
+# Set up a custom theme for colors
+custom_theme = Theme({
+    "success": "green",
+    "error": "bold red",
+    "warning": "yellow",
+    "info": "cyan",
+    "payload": "magenta",
+    "highlight": "bold blue"
+})
+console = Console(theme=custom_theme)
+
+ASCII_BANNER = r'''
+[bold purple] __________________               .__            [/]
+[bold purple] \____    /\_____  \___.__.______ |  |_________  [/]
+[bold purple]   /     /   _(__  <   |  |\____ \|  |  \_  __ \ [/]
+[bold purple]  /     /_  /       \___  ||  |_> >   Y  \  | \/ [/]
+[bold purple] /_______ \/______  / ____||   __/|___|  /__|    [/]
+[bold purple]         \/       \/\/     |__|        \/        [/]
+'''
 
 # Common SQL injection payloads
 SQLI_PAYLOADS = [
@@ -30,10 +54,9 @@ XSS_PAYLOADS = [
 ]
 
 def test_sqli(url, params, method="GET", results=None):
-    print("\n[+] Starting SQL Injection tests...")
+    console.print("\n[+] Starting SQL Injection tests...", style="info")
     vulnerable = False
     param_pairs = [p for p in params.split('&') if '=' in p]
-    # Get baseline response for comparison
     baseline_params = {p.split('=')[0]: p.split('=')[1] for p in param_pairs}
     if method.upper() == "POST":
         baseline_resp = requests.post(url, data=baseline_params, timeout=5)
@@ -41,28 +64,31 @@ def test_sqli(url, params, method="GET", results=None):
         baseline_resp = requests.get(url, params=baseline_params, timeout=5)
     baseline_text = baseline_resp.text
     found_vulns = []
-    for i, pair in enumerate(param_pairs):
-        k, v = pair.split('=', 1)
-        for payload in SQLI_PAYLOADS:
-            test_params = {p.split('=')[0]: p.split('=')[1] for p in param_pairs}
-            test_params[k] = v + payload
-            try:
-                if method.upper() == "POST":
-                    resp = requests.post(url, data=test_params, timeout=5)
-                else:
-                    resp = requests.get(url, params=test_params, timeout=5)
-                if is_sqli_response(resp.text):
-                    found_vulns.append(f"{k} with payload: {payload} (SQL error detected)")
-                elif resp.text != baseline_text:
-                    found_vulns.append(f"{k} with payload: {payload} (response changed)")
-                if "Login successful!" in resp.text and "Login successful!" not in baseline_text:
-                    found_vulns.append(f"[!!!] Authentication bypassed using {k} with payload: {payload}")
-            except Exception as e:
-                pass
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), console=console, transient=True) as progress:
+        task = progress.add_task("Testing SQLi payloads...", total=len(param_pairs) * len(SQLI_PAYLOADS))
+        for i, pair in enumerate(param_pairs):
+            k, v = pair.split('=', 1)
+            for payload in SQLI_PAYLOADS:
+                test_params = {p.split('=')[0]: p.split('=')[1] for p in param_pairs}
+                test_params[k] = v + payload
+                try:
+                    if method.upper() == "POST":
+                        resp = requests.post(url, data=test_params, timeout=5)
+                    else:
+                        resp = requests.get(url, params=test_params, timeout=5)
+                    if is_sqli_response(resp.text):
+                        found_vulns.append(f"[bold]{k}[/] with payload: [payload]{payload}[/] ([error]SQL error detected[/])")
+                    elif resp.text != baseline_text:
+                        found_vulns.append(f"[bold]{k}[/] with payload: [payload]{payload}[/] ([warning]response changed[/])")
+                    if "Login successful!" in resp.text and "Login successful!" not in baseline_text:
+                        found_vulns.append(f"[success][!!!] Authentication bypassed using {k} with payload: {payload}[/]")
+                except Exception:
+                    pass
+                progress.advance(task)
     if results is not None:
         results['sqli'] = found_vulns
-    if not vulnerable:
-        print("[-] No SQL injection vulnerabilities detected with basic payloads.")
+    if not found_vulns:
+        console.print("[-] No SQL injection vulnerabilities detected with basic payloads.", style="success")
 
 def is_sqli_response(response_text):
     # Basic error-based detection (can be expanded)
@@ -79,31 +105,34 @@ def is_sqli_response(response_text):
     return False
 
 def test_xss(url, params, method="GET", results=None):
-    print("\n[+] Starting XSS tests...")
+    console.print("\n[+] Starting XSS tests...", style="info")
     param_pairs = [p for p in params.split('&') if '=' in p]
     found_xss = []
-    for i, pair in enumerate(param_pairs):
-        k, v = pair.split('=', 1)
-        for payload in XSS_PAYLOADS:
-            test_params = {p.split('=')[0]: p.split('=')[1] for p in param_pairs}
-            test_params[k] = payload
-            try:
-                if method.upper() == "POST":
-                    resp = requests.post(url, data=test_params, timeout=5)
-                else:
-                    resp = requests.get(url, params=test_params, timeout=5)
-                # Check if payload is reflected in response
-                if payload in resp.text:
-                    found_xss.append(f"{k} with payload: {payload} (reflected)")
-            except Exception as e:
-                pass
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), console=console, transient=True) as progress:
+        task = progress.add_task("Testing XSS payloads...", total=len(param_pairs) * len(XSS_PAYLOADS))
+        for i, pair in enumerate(param_pairs):
+            k, v = pair.split('=', 1)
+            for payload in XSS_PAYLOADS:
+                test_params = {p.split('=')[0]: p.split('=')[1] for p in param_pairs}
+                test_params[k] = payload
+                try:
+                    if method.upper() == "POST":
+                        resp = requests.post(url, data=test_params, timeout=5)
+                    else:
+                        resp = requests.get(url, params=test_params, timeout=5)
+                    # Check if payload is reflected in response
+                    if payload in resp.text:
+                        found_xss.append(f"[bold]{k}[/] with payload: [payload]{payload}[/] ([error]reflected[/])")
+                except Exception:
+                    pass
+                progress.advance(task)
     if results is not None:
         results['xss'] = found_xss
     if not found_xss:
-        print("[-] No XSS vulnerabilities detected with basic payloads.")
+        console.print("[-] No XSS vulnerabilities detected with basic payloads.", style="success")
 
 def brute_force_login(url, form_params, method="POST", success_indicator="Login successful!", results=None, user_file=None, pass_file=None):
-    print("\n[+] Starting brute-force credential testing...")
+    console.print("\n[+] Starting brute-force credential testing...", style="info")
     username_field = None
     password_field = None
     for pair in form_params.split('&'):
@@ -114,38 +143,40 @@ def brute_force_login(url, form_params, method="POST", success_indicator="Login 
             if 'pass' in k.lower():
                 password_field = k
     if not username_field or not password_field:
-        print("[!] Could not identify username/password fields for brute-force.")
+        console.print("[!] Could not identify username/password fields for brute-force.", style="error")
         return
-    # Require usernames and passwords from files only
     if not user_file or not os.path.exists(user_file):
-        print("[!] Username list file (--userlist) is required for brute-force and was not found.")
+        console.print("[!] Username list file (--userlist) is required for brute-force and was not found.", style="error")
         return
     if not pass_file or not os.path.exists(pass_file):
-        print("[!] Password list file (--passlist) is required for brute-force and was not found.")
+        console.print("[!] Password list file (--passlist) is required for brute-force and was not found.", style="error")
         return
     with open(user_file, 'r', encoding='utf-8') as f:
         usernames = [line.strip() for line in f if line.strip()]
     with open(pass_file, 'r', encoding='utf-8') as f:
         passwords = [line.strip() for line in f if line.strip()]
     found_creds = []
-    for username in usernames:
-        for password in passwords:
-            params = {username_field: username, password_field: password}
-            try:
-                if method.upper() == "POST":
-                    resp = requests.post(url, data=params, timeout=5)
-                else:
-                    resp = requests.get(url, params=params, timeout=5)
-                if success_indicator.lower() in resp.text.lower():
-                    found_creds.append(f"{username_field}='{username}', {password_field}='{password}'")
-                    if results is not None:
-                        results['creds'] = found_creds
-                    return
-            except Exception as e:
-                print(f"[!] Error testing {username}/{password}: {e}")
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), console=console, transient=True) as progress:
+        task = progress.add_task("Brute-forcing credentials...", total=len(usernames) * len(passwords))
+        for username in usernames:
+            for password in passwords:
+                params = {username_field: username, password_field: password}
+                try:
+                    if method.upper() == "POST":
+                        resp = requests.post(url, data=params, timeout=5)
+                    else:
+                        resp = requests.get(url, params=params, timeout=5)
+                    if success_indicator.lower() in resp.text.lower():
+                        found_creds.append(f"[success]{username_field}='{username}', {password_field}='{password}'[/]")
+                        if results is not None:
+                            results['creds'] = found_creds
+                        return
+                except Exception as e:
+                    console.print(f"[!] Error testing {username}/{password}: {e}", style="warning")
+                progress.advance(task)
     if results is not None:
         results['creds'] = found_creds
-    print("[-] No valid credentials found with provided username/password lists.")
+    console.print("[-] No valid credentials found with provided username/password lists.", style="success")
 
 def blind_sqli_extract(url, form_params, method="POST", success_indicator="Login successful!", max_length=20, max_users=5, results=None):
     print("\n[+] Starting blind SQLi extraction (fresh crack, multi-user)...")
@@ -286,11 +317,23 @@ def crawl_and_test(start_url, max_pages=10, crack_lists=False, fresh_crack=False
     if results is not None:
         results['crawl'] = crawl_results
 
+class CustomArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        console.print(f"\n[bold red]Argument error:[/] {message}\n", style="error")
+        self.print_help()
+        console.print("\n[bold green]Press [Enter] to exit...[/]")
+        input()
+        exit(2)
+
 def main():
-    parser = argparse.ArgumentParser(
+    console.print(ASCII_BANNER)
+    today = datetime.datetime.now().strftime('%Y-%m-%d')
+    console.print(f"[bold]Welcome to the SQL Injection Testing and Remediation CLI Tool![/]", style="info")
+    console.print(f"[dim]Author: Noah Rogers | Date: {today}[/]\n", style="info")
+    parser = CustomArgumentParser(
         description="SQL Injection Testing and Remediation CLI Tool"
     )
-    parser.add_argument('--url', type=str, help='Target URL to test', required=True)
+    parser.add_argument('--url', type=str, help='Target URL to test', required=False)
     parser.add_argument('--params', type=str, help='Parameters to test (e.g., "id=1")')
     parser.add_argument('--method', type=str, choices=['GET', 'POST'], default='GET', help='HTTP method to use (GET or POST)')
     parser.add_argument('--auto', action='store_true', help='Automatically find and test forms on the page (with blind SQLi by default)')
@@ -302,7 +345,14 @@ def main():
     parser.add_argument('--passlist', type=str, help='File with passwords for brute-force (one per line)')
     args = parser.parse_args()
 
-    print(f"Testing {args.url}")
+    if not args.url:
+        console.print("[bold red]Error:[/] The --url argument is required to run tests.", style="error")
+        parser.print_help()
+        console.print("\n[bold green]Press [Enter] to exit...[/]")
+        input()
+        return
+
+    console.print(f"Testing {args.url}", style="highlight")
     results = {}
     tested_urls = set()
     # If both --auto and --crawl are set, avoid duplicate testing
@@ -319,33 +369,32 @@ def main():
         test_sqli(args.url, args.params, args.method, results=single_result)
         results = {'pages': [single_result]}
     else:
-        print("[!] Please provide either --params, --auto, or --crawl.")
+        console.print("[!] Please provide either --params, --auto, or --crawl.", style="error")
         return
     # Output summary
-    print("\n========== SUMMARY ==========")
-    print("Note: '[i] Response changed for payload, but this does NOT confirm SQL injection' means the page output changed, but this is not a confirmed vulnerability. Only '[!] Potential SQL Injection (SQL error)' or authentication bypasses are strong indicators of SQLi.\n")
+    console.print("\n========== SUMMARY ==========", style="highlight")
+    console.print("Note: '[i] Response changed for payload, but this does NOT confirm SQL injection' means the page output changed, but this is not a confirmed vulnerability. Only '[!] Potential SQL Injection (SQL error)' or authentication bypasses are strong indicators of SQLi.\n", style="info")
     if 'pages' in results:
         for page in results['pages']:
-            print(f"\n[Page: {page['url']}]")
-            print("SQL Injection findings:")
+            console.print(f"\n[Page: {page['url']}]", style="highlight")
+            console.print("SQL Injection findings:", style="info")
             if page.get('sqli'):
                 for vuln in page.get('sqli', []):
                     if '(SQL error detected)' in vuln:
-                        print(f"  [!] Potential SQL Injection (SQL error): {vuln}")
+                        console.print(f"  [!] Potential SQL Injection (SQL error): {vuln}", style="error")
                     elif '(response changed)' in vuln:
-                        print(f"  [i] Response changed for payload, but this does NOT confirm SQL injection: {vuln}")
+                        console.print(f"  [i] Response changed for payload, but this does NOT confirm SQL injection: {vuln}", style="warning")
                     else:
-                        print(f"  [!] Potential SQL Injection: {vuln}")
+                        console.print(f"  [!] Potential SQL Injection: {vuln}", style="error")
             else:
-                print("  None found")
-            print("XSS findings:")
+                console.print("  None found", style="success")
+            console.print("XSS findings:", style="info")
             if page.get('xss'):
                 for xss in page.get('xss', []):
                     if '(reflected)' in xss:
-                        print(f"  [!] Potential XSS (payload reflected): {xss}")
+                        console.print(f"  [!] Potential XSS (payload reflected): {xss}", style="error")
                     else:
-                        print(f"  [!] Potential XSS: {xss}")
-                # Output PoC for each XSS
+                        console.print(f"  [!] Potential XSS: {xss}", style="error")
                 for xss in page.get('xss', []):
                     if ' with payload: ' in xss:
                         param, rest = xss.split(' with payload: ', 1)
@@ -355,43 +404,45 @@ def main():
                             method = 'POST'
                         if method == 'GET' or page['url'].endswith('/profile'):
                             poc_url = f"{page['url']}?{param}={requests.utils.quote(payload)}"
-                            print(f"    [POC] {poc_url}")
+                            console.print(f"    [POC] {poc_url}", style="payload")
                         else:
-                            print(f"    [POC] curl -X POST '{page['url']}' -d '{param}={payload}'")
+                            console.print(f"    [POC] curl -X POST '{page['url']}' -d '{param}={payload}'", style="payload")
             else:
-                print("  None found")
-            print("Validated credentials:")
+                console.print("  None found", style="success")
+            console.print("Validated credentials:", style="info")
             for cred in page.get('creds', []):
-                print(f"  - {cred}")
+                console.print(f"  - {cred}", style="success")
     if 'crawl' in results:
         for crawl_page in results['crawl']:
-            print(f"\n[Crawled Page: {crawl_page['url']}]")
+            console.print(f"\n[Crawled Page: {crawl_page['url']}]", style="highlight")
             for page in crawl_page.get('pages', []):
-                print(f"  [Form: {page['url']}]")
-                print("  SQL Injection findings:")
+                console.print(f"  [Form: {page['url']}]", style="highlight")
+                console.print("  SQL Injection findings:", style="info")
                 if page.get('sqli'):
                     for vuln in page.get('sqli', []):
                         if '(SQL error detected)' in vuln:
-                            print(f"    [!] Potential SQL Injection (SQL error): {vuln}")
+                            console.print(f"    [!] Potential SQL Injection (SQL error): {vuln}", style="error")
                         elif '(response changed)' in vuln:
-                            print(f"    [i] Response changed for payload, but this does NOT confirm SQL injection: {vuln}")
+                            console.print(f"    [i] Response changed for payload, but this does NOT confirm SQL injection: {vuln}", style="warning")
                         else:
-                            print(f"    [!] Potential SQL Injection: {vuln}")
+                            console.print(f"    [!] Potential SQL Injection: {vuln}", style="error")
                 else:
-                    print("    None found")
-                print("  XSS findings:")
+                    console.print("    None found", style="success")
+                console.print("  XSS findings:", style="info")
                 if page.get('xss'):
                     for xss in page.get('xss', []):
                         if '(reflected)' in xss:
-                            print(f"    [!] Potential XSS (payload reflected): {xss}")
+                            console.print(f"    [!] Potential XSS (payload reflected): {xss}", style="error")
                         else:
-                            print(f"    [!] Potential XSS: {xss}")
+                            console.print(f"    [!] Potential XSS: {xss}", style="error")
                 else:
-                    print("    None found")
-                print("  Validated credentials:")
+                    console.print("    None found", style="success")
+                console.print("  Validated credentials:", style="info")
                 for cred in page.get('creds', []):
-                    print(f"    - {cred}")
-    print("============================\n")
+                    console.print(f"    - {cred}", style="success")
+    console.print("============================\n", style="highlight")
+    console.print("\n[bold green]Press [Enter] to exit...[/]")
+    input()
 
 if __name__ == "__main__":
     main()
