@@ -1,6 +1,6 @@
-# SQL Injection Testing and Remediation CLI Tool
+# SQL Injection Testing CLI Tool
 
-This project is a Python-based command-line tool designed to test web applications for SQL injection vulnerabilities and suggest remediation strategies. It supports both automated and manual testing, brute-force credential discovery, and blind SQLi extraction.
+This project is a Python-based command-line tool designed to test web applications for SQL injection vulnerabilities. It supports both automated and manual testing, brute-force credential discovery, and blind SQLi extraction.
 
 ## Features
 
